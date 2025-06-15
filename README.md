@@ -17,7 +17,16 @@ The default parameters are:
 * Graphviz as the renderer;
 * `data.csv` as the dataset file;
 * `tree.png` as the Tree's image output file;
-* `metrics.csv` as the benchmark's output file.
+* `metrics.csv` as the benchmark's output file;
+* 250 as the number of benchmarking runs.
+
+## Extra Information
+A code for preprocessing the `data.csv` is found at `preprocessing.py` and it generates `cleaned.csv`.  
+This code was copied from a fork in [gabi-pinheiro's repo](https://github.com/gabi-pinheiro/air-quality/blob/b2cbdaa49ee1b51c6b10f6f22de274b508793294/pre-processing.py) and _slightly_ edited to work on the existing code here.  
+
+The generated ROC Curve uses One-vs-Rest Macro-Average to try and consider the minority classes as equal value as the majority ones.  
+The visualization of this curve can be found at `macro_roc.png` after running the algorithm, though it is not generated when benchmarking.
+
 
 
 ## Running the program
