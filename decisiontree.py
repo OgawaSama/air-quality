@@ -12,14 +12,15 @@ import os
 import time
 import argparse
 import pandas
+import numpy as np
 from sklearn import tree, metrics
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.preprocessing import LabelBinarizer
-from sklearn.metrics import roc_auc_score, RocCurveDisplay, roc_curve
+from sklearn.metrics import roc_auc_score, RocCurveDisplay
 import matplotlib.pyplot as plt
 import graphviz
-from itertools import cycle
+
 
 DEPTH_ABSOLUTE_MAXIMUM = 100    # Change this for your limit when running bestDepth() or minDepth()
 
@@ -131,38 +132,58 @@ def runBenchmark(X, y, args):
     # Our ""defines""
     MAX_RUN = args.n__number_runs          # How many runs to do
     MAGIC_NUMBER = 39       # Doesn't really matter. More for flare, to be honest
-    
+    R_FOLDS = 10
+
     results = []  
     
     # Do runs
     print(f"Executing {MAX_RUN} runs:")
     for i in range(MAX_RUN):
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=args.test, random_state=MAGIC_NUMBER+i)
+        # Store the fold metrics for each iteration
+        fold_metrics = {
+            'training_time': [],
+            'testing_time': [],
+            'accuracy': [],
+            'f_measure': [],
+        }
         
-        dtree = DecisionTreeClassifier(random_state=MAGIC_NUMBER+i)
+        print(f"Creating {R_FOLDS}-fold cross-validation.")
+        skf = StratifiedKFold(n_splits=R_FOLDS, shuffle=False, random_state=MAGIC_NUMBER)
 
-        # Benchmark training
-        start_training = time.time()
-        dtree.fit(X_train, y_train)
-        training_time = time.time() - start_training
+        for train_index, test_index in skf.split(X, y): 
+            X_train, X_test = X[train_index], X[test_index]
+            y_train, y_test = y[train_index], y[test_index]
+        
+            dtree = DecisionTreeClassifier(random_state=MAGIC_NUMBER+i)
 
-        # Benchmark testing
-        start_testing = time.time()
-        y_pred = dtree.predict(X_test)
-        testing_time = time.time() - start_testing
+            # Benchmark training
+            start_training = time.time()
+            dtree.fit(X_train, y_train)
+            training_time = time.time() - start_training
 
-        # Metrics
-        acc = metrics.accuracy_score(y_test, y_pred)
-        f_measure = metrics.f1_score(y_test, y_pred, average='weighted')
+            # Benchmark testing
+            start_testing = time.time()
+            y_pred = dtree.predict(X_test)
+            testing_time = time.time() - start_testing
+
+            # Metrics
+            acc = metrics.accuracy_score(y_test, y_pred)
+            f_measure = metrics.f1_score(y_test, y_pred, average='weighted')
+
+            # Store the fold metrics into the array
+            fold_metrics['training_time'].append(training_time)
+            fold_metrics['testing_time'].append(testing_time)
+            fold_metrics['acurracy'].append(acc)
+            fold_metrics['f_measure'].append(f_measure)
 
         # Save results
         results.append({
             'run': i+1,
-            'training_time': training_time,
-            'testing_time': testing_time,
-            'total_time': training_time + testing_time,
-            'accuracy': acc,
-            'f-measure': f_measure,
+            'training_time': np.mean(fold_metrics['training_time']),
+            'testing_time': np.mean(fold_metrics['testing_time']),
+            'total_time': np.mean(fold_metrics['training_time']) + np.mean(fold_metrics['testing_time']),
+            'accuracy': np.mean(fold_metrics['accuracy']),
+            'f-measure': np.mean(fold_metrics['f_measure']),
         })
 
     # Send to final processing

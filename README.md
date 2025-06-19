@@ -27,6 +27,7 @@ This code was copied from a fork in [gabi-pinheiro's repo](https://github.com/ga
 The generated ROC Curve uses One-vs-Rest Macro-Average to try and consider the minority classes as equal value as the majority ones.  
 The visualization of this curve can be found at `macro_roc.png` after running the algorithm, though it is not generated when benchmarking.
 
+The benchmarking algorithm uses Stratified R-Fold Cross-Validation, with R=10.
 
 
 ## Running the program
