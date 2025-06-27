@@ -104,7 +104,7 @@ def saveRocCurve(y_onehot_test, y_score, macro_roc_auc_ovr):
     RocCurveDisplay.from_predictions(
         y_onehot_test.ravel(),
         y_score.ravel(),
-        name=f"Macro-average ROC (AUC = {macro_roc_auc_ovr:.2f})",
+        name=f"Macro-average ROC",
         color= "darkviolet",
         plot_chance_level=True,
     )
@@ -128,6 +128,7 @@ def saveResults(results, args):
     print(f"Average accuracy: {averages['accuracy'].values[0]:.4f}")
     print(f"Average F-measure: {averages['f-measure'].values[0]:.4f}")
 
+
 def runBenchmark(X, y, args):
     # Our ""defines""
     MAX_RUN = args.n__number_runs          # How many runs to do
@@ -135,6 +136,13 @@ def runBenchmark(X, y, args):
     R_FOLDS = 10
 
     results = []  
+    # Saves ROC values for each run (average found within folds)
+    roc_values = {
+        'run': [],
+        'roc_auc_ovr': [],
+        'y_score': [],
+        'y_onehot': [],
+    }
     
     # Do runs
     print(f"Executing {MAX_RUN} runs:")
@@ -145,15 +153,18 @@ def runBenchmark(X, y, args):
             'testing_time': [],
             'accuracy': [],
             'f_measure': [],
+            'roc_auc_ovr': [],
+            'y_score': [],
+            'y_onehot': [],
         }
         
-        print(f"Creating {R_FOLDS}-fold cross-validation.")
-        skf = StratifiedKFold(n_splits=R_FOLDS, shuffle=False, random_state=MAGIC_NUMBER)
-
+        # print(f"Creating {R_FOLDS}-fold cross-validation.")
+        skf = StratifiedKFold(n_splits=R_FOLDS, shuffle=True, random_state=MAGIC_NUMBER)
+        # print(f"Starting run {i+1}:")
         for train_index, test_index in skf.split(X, y): 
             X_train, X_test = X[train_index], X[test_index]
             y_train, y_test = y[train_index], y[test_index]
-        
+            
             dtree = DecisionTreeClassifier(random_state=MAGIC_NUMBER+i)
 
             # Benchmark training
@@ -170,11 +181,50 @@ def runBenchmark(X, y, args):
             acc = metrics.accuracy_score(y_test, y_pred)
             f_measure = metrics.f1_score(y_test, y_pred, average='weighted')
 
+            # ROC Curve
+                # Initialize
+            y_score = dtree.predict_proba(X_test)
+            label_binarizer = LabelBinarizer().fit(y_train)
+            y_onehot_test = label_binarizer.transform(y_test)
+                # Using OvR macro-average
+            macro_roc_auc_ovr = roc_auc_score(
+                y_test,
+                y_score,
+                multi_class="ovr",
+                average="macro",
+            )
+            # These fold metrics are for deciding the average ROC curve from the folds.
+            # print(f"\t\tRan a fold: {train_index+1}")
+            fold_metrics['roc_auc_ovr'].append(macro_roc_auc_ovr)
+            fold_metrics['y_score'].append(y_score)
+            fold_metrics['y_onehot'].append(y_onehot_test)
+
+
             # Store the fold metrics into the array
             fold_metrics['training_time'].append(training_time)
             fold_metrics['testing_time'].append(testing_time)
-            fold_metrics['acurracy'].append(acc)
+            fold_metrics['accuracy'].append(acc)
             fold_metrics['f_measure'].append(f_measure)
+
+        # Select the average ROC curve for the fold based on the fold's accuracy
+        mean_accuracy = np.mean(fold_metrics['accuracy'])
+        # print(f"\tIteration {i+1}'s avg accuracy was: {mean_accuracy}")
+            # list all accuracies with acc <= mean_acc
+        lower_accuracies = [
+            acc for acc in fold_metrics['accuracy'] if acc <= mean_accuracy
+        ]
+        closest_lower = max(lower_accuracies)
+            # for entries with same acc (possible)
+        closest_lower_items = [
+            i for i, acc in enumerate(fold_metrics['accuracy']) if acc == closest_lower
+        ]
+        closest_lower_index = closest_lower_items[0]
+        # print(f"\t\tThis iteration's closest acc was: {fold_metrics['accuracy'][closest_lower_index]}")
+            # Save to this iteration's avg ROC
+        roc_values['run'].append(i+1)
+        roc_values['roc_auc_ovr'].append(fold_metrics['roc_auc_ovr'][closest_lower_index])
+        roc_values['y_score'].append(fold_metrics['y_score'][closest_lower_index])
+        roc_values['y_onehot'].append(fold_metrics['y_onehot'][closest_lower_index])
 
         # Save results
         results.append({
@@ -182,9 +232,27 @@ def runBenchmark(X, y, args):
             'training_time': np.mean(fold_metrics['training_time']),
             'testing_time': np.mean(fold_metrics['testing_time']),
             'total_time': np.mean(fold_metrics['training_time']) + np.mean(fold_metrics['testing_time']),
-            'accuracy': np.mean(fold_metrics['accuracy']),
+            'accuracy': mean_accuracy,
             'f-measure': np.mean(fold_metrics['f_measure']),
         })
+
+    # Generate our average ROC
+    # Select the average ROC curve for the iteration based on their roc_auc_ovr score
+    mean_accuracy = np.mean(roc_values['roc_auc_ovr'])
+        # list all accuracies with acc <= mean_acc
+    lower_accuracies = [
+        acc for acc in roc_values['roc_auc_ovr'] if acc <= mean_accuracy
+    ]
+    closest_lower = max(lower_accuracies)
+        # for entries with same acc (possible)
+    closest_lower_items = [
+        i for i, acc in enumerate(roc_values['roc_auc_ovr']) if acc == closest_lower
+    ]
+    closest_lower_index = closest_lower_items[0]
+    # Create the roc image
+    print(f"Creating ROC curve with the values from the Average Iteration's Average Fold results, from run {roc_values['run'][closest_lower_index]}")
+    saveRocCurve(roc_values['y_onehot'][closest_lower_index], roc_values['y_score'][closest_lower_index], roc_values['roc_auc_ovr'][closest_lower_index])
+
 
     # Send to final processing
     saveResults(pandas.DataFrame(results), args)

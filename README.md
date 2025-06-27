@@ -27,7 +27,9 @@ This code was copied from a fork in [gabi-pinheiro's repo](https://github.com/ga
 The generated ROC Curve uses One-vs-Rest Macro-Average to try and consider the minority classes as equal value as the majority ones.  
 The visualization of this curve can be found at `macro_roc.png` after running the algorithm, though it is not generated when benchmarking.
 
-The benchmarking algorithm uses Stratified R-Fold Cross-Validation, with R=10.
+The benchmarking algorithm uses Stratified R-Fold Cross-Validation, with R=10. It does take a while to complete running, do not worry.  
+
+When generating the ROC Curve with Matplotlib, it might generating a warning regarding `**kwargs`. This does not (currently) affect the program's result and should not worry the user. Attempts to solve it proved unfruitful.
 
 
 ## Running the program
@@ -44,6 +46,16 @@ Install the needed packages with
 pip install -r requirements.txt
 ```
 
+Install the latest Graphviz version through their [website](https://www.graphviz.org/download/)  
+And add it to your PATH.
+It can be done by editing the System Variables or by executing in Python: 
+```py
+import os
+os.environ["PATH"] += os.pathsep + 'path/to/Graphviz/bin/'
+```
+Where you change `path/to` with the proper path to your installed Graphviz package.
+
+
 And then run the program with
 ```shell
 python decisiontree.py
@@ -59,6 +71,13 @@ Install the needed packages with
 ```shell
 pip install -r requirements.txt
 ```
+
+If in Debian* or Ubuntu*, install the latest Graphviz version with
+```shell
+sudo apt install graphviz
+```
+If in Arch*, you can install Graphviz and add it manually to your PATH  
+<sup><sub> I did it this way but forgot how, sorry⠀⠀⠀⠀orz </sub></sup>
 
 And then run the program with
 ```shell
