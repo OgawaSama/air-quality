@@ -144,6 +144,9 @@ def runBenchmark(X, y, args):
         'y_onehot': [],
     }
     
+    # Split into 70/30 (or whichever desired) before proceeding
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=args.test, random_state=39)
+
     # Do runs
     print(f"Executing {MAX_RUN} runs:")
     for i in range(MAX_RUN):
@@ -159,36 +162,36 @@ def runBenchmark(X, y, args):
         }
         
         # print(f"Creating {R_FOLDS}-fold cross-validation.")
-        skf = StratifiedKFold(n_splits=R_FOLDS, shuffle=True, random_state=MAGIC_NUMBER)
+        skf = StratifiedKFold(n_splits=R_FOLDS)
         # print(f"Starting run {i+1}:")
-        for train_index, test_index in skf.split(X, y): 
-            X_train, X_test = X[train_index], X[test_index]
-            y_train, y_test = y[train_index], y[test_index]
+        for train_index, test_index in skf.split(X_train, y_train): 
+            fold_X_train, fold_X_test = X_train[train_index], X_train[test_index]
+            fold_y_train, fold_y_test = y_train[train_index], y_train[test_index]
             
             dtree = DecisionTreeClassifier(random_state=MAGIC_NUMBER+i)
 
             # Benchmark training
             start_training = time.time()
-            dtree.fit(X_train, y_train)
+            dtree.fit(fold_X_train, fold_y_train)
             training_time = time.time() - start_training
 
             # Benchmark testing
             start_testing = time.time()
-            y_pred = dtree.predict(X_test)
+            y_pred = dtree.predict(fold_X_test)
             testing_time = time.time() - start_testing
 
             # Metrics
-            acc = metrics.accuracy_score(y_test, y_pred)
-            f_measure = metrics.f1_score(y_test, y_pred, average='weighted')
+            acc = metrics.accuracy_score(fold_y_test, y_pred)
+            f_measure = metrics.f1_score(fold_y_test, y_pred, average='weighted')
 
             # ROC Curve
                 # Initialize
-            y_score = dtree.predict_proba(X_test)
-            label_binarizer = LabelBinarizer().fit(y_train)
-            y_onehot_test = label_binarizer.transform(y_test)
+            y_score = dtree.predict_proba(fold_X_test)
+            label_binarizer = LabelBinarizer().fit(fold_y_train)
+            y_onehot_test = label_binarizer.transform(fold_y_test)
                 # Using OvR macro-average
             macro_roc_auc_ovr = roc_auc_score(
-                y_test,
+                fold_y_test,
                 y_score,
                 multi_class="ovr",
                 average="macro",
@@ -337,7 +340,7 @@ def main():
         exit(0)
 
     # Divide into train and test subsets
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=args.test, random_state=1)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=args.test, random_state=39)
 
 
     # Create tree image and save it
